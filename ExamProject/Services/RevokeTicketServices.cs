@@ -12,54 +12,62 @@ namespace ExamProject.Services
         {
             _db = db;
         }
-
-        public async Task<RevokeTicketDto> RevokeTicketAsync(string bookedTicketId, string ticketCode, int bookedTicketDetailsQuantity)
+        public async Task<BookedTicket?> BookedTicketIdExistAsync(string bookedTicketId)
         {
-            if (bookedTicketDetailsQuantity <= 0)
+            return await _db.BookedTickets
+                .Include(t => t.BookedTicketsDetails)
+                .ThenInclude(td => td.Ticket)
+                .FirstOrDefaultAsync(t => t.BookedTicketId == bookedTicketId);
+        }
+
+        public async Task<bool> TicketCodeExistsAsync(string ticketCode)
+        {
+            return await _db.Tickets.AnyAsync(t => t.TicketCode == ticketCode);
+        }
+
+        public async Task<BookedTicketsDetail?> GetBookedTicketDetailsAsync(string bookedTicketId, string ticketCode)
+        {
+            var bookedTicket = await _db.BookedTickets
+                .Include(t => t.BookedTicketsDetails)
+                .ThenInclude(td => td.Ticket)
+                .FirstOrDefaultAsync(t => t.BookedTicketId == bookedTicketId);
+
+            return bookedTicket?.BookedTicketsDetails
+                .FirstOrDefault(t => t.Ticket.TicketCode == ticketCode);
+        }
+        public async Task<RevokeTicketDto> RevokeTicketAsync(string bookedTicketId, string ticketCode, int quantity)
+        {
+            var bookedTicket = await _db.BookedTickets
+                .Include(t => t.BookedTicketsDetails)
+                .ThenInclude(td => td.Ticket)
+                .FirstOrDefaultAsync(t => t.BookedTicketId == bookedTicketId);
+
+            if (bookedTicket == null)
             {
-                throw new ArgumentException("The quantity to revoke must be above 0");
+                throw new Exception("BookedTicket not found.");
             }
 
-            var bookedTicketDetails = await _db.BookedTicketsDetails
-                .Include(td => td.Ticket)
-                .Where(td => td.BookedTicketId == bookedTicketId && td.Ticket.TicketCode == ticketCode)
-                .FirstOrDefaultAsync();
+            var ticketDetail = bookedTicket.BookedTicketsDetails.FirstOrDefault(t => t.Ticket.TicketCode == ticketCode);
 
-            if (bookedTicketDetails == null)
+            if (ticketDetail == null)
             {
-                throw new KeyNotFoundException("The specified BookedTicketId or TicketCode does not exist.");
+                throw new Exception("Ticket detail not found.");
             }
 
-            if (bookedTicketDetailsQuantity > bookedTicketDetails.BookedTicketDetailsQuantity)
+            if (quantity > ticketDetail.BookedTicketDetailsQuantity)
             {
-                throw new InvalidOperationException("The quantity to revoke is higher than the available ticket quantity.");
+                throw new Exception("The quantity to revoke is higher than the available ticket quantity.");
             }
 
-            bookedTicketDetails.BookedTicketDetailsQuantity -= bookedTicketDetailsQuantity;
-
-            if (bookedTicketDetails.BookedTicketDetailsQuantity <= 0)
-            {
-                _db.BookedTicketsDetails.Remove(bookedTicketDetails);
-            }
-
-            bool hasRemainingTickets = await _db.BookedTicketsDetails
-                .AnyAsync(td => td.BookedTicketId == bookedTicketId && td.BookedTicketDetailsQuantity > 0);
-            if (!hasRemainingTickets)
-            {
-                var ticketsBooked = await _db.BookedTickets.FindAsync(bookedTicketId);
-                if (ticketsBooked != null)
-                {
-                    _db.BookedTickets.Remove(ticketsBooked);
-                }
-            }
+            ticketDetail.BookedTicketDetailsQuantity -= quantity;
             await _db.SaveChangesAsync();
 
             return new RevokeTicketDto
             {
-                TicketCode = bookedTicketDetails.Ticket.TicketCode,
-                TicketName = bookedTicketDetails.Ticket.TicketName,
-                CategoryName = bookedTicketDetails.Ticket.CategoryName,
-                RemainingQuantity = bookedTicketDetails.BookedTicketDetailsQuantity
+                TicketCode = ticketDetail.Ticket.TicketCode,
+                TicketName = ticketDetail.Ticket.TicketName,
+                CategoryName = ticketDetail.Ticket.CategoryName,
+                RemainingQuantity = ticketDetail.BookedTicketDetailsQuantity
             };
         }
     }

@@ -1,69 +1,67 @@
 ﻿using ExamProject.Models;
 using ExamProject.Services;
 using Microsoft.AspNetCore.Mvc;
+using MediatR;
+using FluentValidation;
+using ExamProject.Commands;
 
 // For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
 namespace ExamProject.Controllers
 {
-    [Route("api/v1/book-ticket")]
+    [Route("api/v1/ticket-booking")]
     [ApiController]
     public class TicketBookingController : ControllerBase
     {
-        private readonly BookingTicketService _service;
+        private readonly IMediator _mediator;
 
-        public TicketBookingController(BookingTicketService service)
+        public TicketBookingController(IMediator mediator)
         {
-            _service = service;
+            _mediator = mediator;
         }
 
-        // POST api/<TicketBookingController>
+        [HttpPost]
         [HttpPost]
         public async Task<IActionResult> BookTicket([FromBody] List<BookingListModelRequestBody> ticketRequests)
         {
             try
             {
-                var response = await _service.BookTicketAsync(ticketRequests);
-                return Ok(response);
+                var command = new BookTicketCommand(ticketRequests);
+                var result = await _mediator.Send(command);
+
+                if (result == null)
+                {
+                    return BadRequest(new ProblemDetails
+                    {
+                        Title = "Booking Failed",
+                        Status = 400,
+                        Detail = "The booking request could not be processed.",
+                    });
+                }
+
+                return Ok(new { success = true, data = result });
             }
-            catch (KeyNotFoundException ex)
+            catch (ValidationException ex)
             {
-                return Problem(
-                    title: "Not Found",
-                    detail: ex.Message,
-                    statusCode: StatusCodes.Status404NotFound,
-                    type: "https://tools.ietf.org/html/rfc7807"
-                );
-            }
-            catch (InvalidOperationException ex)
-            {
-                return Problem(
-                    title: "Invalid Quantity",
-                    detail: ex.Message,
-                    statusCode: StatusCodes.Status400BadRequest,
-                    type: "https://tools.ietf.org/html/rfc7807"
-                );
-            }
-            catch (ArgumentException ex)
-            {
-                return Problem(
-                    title: "Bad Request",
-                    detail: ex.Message,
-                    statusCode: StatusCodes.Status400BadRequest,
-                    type: "https://tools.ietf.org/html/rfc7807"
-                );
+                return BadRequest(new ProblemDetails
+                {
+                    Title = "Validation Error",
+                    Status = 400,
+                    Detail = "One or more validation errors occurred.",
+                    Extensions = { ["errors"] = ex.Errors }
+                });
             }
             catch (Exception ex)
             {
-                return Problem(
-                    detail: ex.Message,
-                    statusCode: 500,
-                    title: "Internal Server Error",
-                    type: "https://tools.ietf.org/html/rfc7807"
-                );
+                return StatusCode(500, new ProblemDetails
+                {
+                    Title = "Internal Server Error",
+                    Status = 500,
+                    Detail = "An unexpected error occurred.",
+                    Extensions = { ["exceptionMessage"] = ex.Message }
+                });
             }
-
-        
         }
+
     }
 }

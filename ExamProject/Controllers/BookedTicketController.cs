@@ -1,5 +1,8 @@
-﻿using ExamProject.Models;
+﻿using ExamProject.Commands;
+using ExamProject.Models;
 using ExamProject.Services;
+using FluentValidation;
+using MediatR;
 using Microsoft.AspNetCore.Mvc;
 
 // For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
@@ -10,37 +13,35 @@ namespace ExamProject.Controllers
     [ApiController]
     public class BookedTicketController : ControllerBase
     {
-        // GET: api/<BookedTicketController>
-        private readonly BookedTicketsServices _service;
+        private readonly IMediator _mediator;
 
-        public BookedTicketController(BookedTicketsServices service)
+        public BookedTicketController(IMediator mediator)
         {
-            _service = service;
+            _mediator = mediator;
         }
+
         [HttpGet]
         public async Task<IActionResult> GetBookedTicketsAsync([FromRoute] string BookedTicketId)
         {
             try
             {
-                var getRequest = new BookedTicketsGet { BookedTicketId = BookedTicketId };
-                var result = await _service.GetBookedTicketsAsync(getRequest);
-                if (result.Result is NotFoundObjectResult notFoundResult)
-                {
-                    return NotFound(notFoundResult.Value);
-                }
-
-                if (result.Result is BadRequestObjectResult badRequestResult)
-                {
-                    return BadRequest(badRequestResult.Value);
-                }
-
+                var bookedTicketRequest = new BookedTicketsGet { BookedTicketId = BookedTicketId };
+                var command = new GetBookedTicketCommand(bookedTicketRequest);
+                var result = await _mediator.Send(command);
                 return Ok(result);
+            }
+            catch (ValidationException ex)
+            {
+                return BadRequest(new
+                {
+                    Errors = ex.Errors.Select(e => new { e.PropertyName, e.ErrorMessage })
+                });
             }
             catch (Exception ex)
             {
                 return Problem(
                     detail: ex.Message,
-                    statusCode: 500,
+                    statusCode: StatusCodes.Status500InternalServerError,
                     title: "Internal Server Error",
                     type: "https://tools.ietf.org/html/rfc7807"
                 );

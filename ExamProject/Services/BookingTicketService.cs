@@ -12,8 +12,17 @@ namespace ExamProject.Services
         {
             _db = db;
         }
+        public async Task<bool> TicketExistsAsync(string ticketCode)
+        {
+            return await _db.Tickets.AnyAsync(t => t.TicketCode == ticketCode);
+        }
 
-        public async Task<BookTicketResponse> BookTicketAsync(List<BookingListModelRequestBody> ticketRequests)
+        public async Task<Ticket> GetTicketByCodeAsync(string ticketCode)
+        {
+            return await _db.Tickets.FirstOrDefaultAsync(t => t.TicketCode == ticketCode);
+        }
+
+        public async Task<BookTicketResponse> BookTicketsAsync(List<BookingListModelRequestBody> ticketRequests)
         {
             var response = new BookTicketResponse
             {
@@ -36,24 +45,8 @@ namespace ExamProject.Services
             foreach (var request in ticketRequests)
             {
                 var ticket = await _db.Tickets.FirstOrDefaultAsync(t => t.TicketCode == request.TicketCode);
-                if (ticket == null)
-                {
-                    throw new KeyNotFoundException($"Ticket with code {request.TicketCode} not found");
-                }
-                if (ticket.TicketRemainingQuota <= 0)
-                {
-                    throw new InvalidOperationException($"Ticket with code {request.TicketCode} is sold out");
 
-                }
-                if (request.TicketQuantityToBook > ticket.TicketRemainingQuota)
-                {
-                    throw new InvalidOperationException($"Ticket with code {request.TicketCode} only has {ticket.TicketRemainingQuota} remaining");
-                }
-                if (ticket.EventDate <= DateTime.UtcNow)
-                {
-                    throw new InvalidOperationException($"Ticket with code {request.TicketCode} is expired");
-                }
-
+                
                 var ticketDetailsId = $"BTD{Guid.NewGuid().ToString("N").Substring(0, 4).ToUpper()}";
 
                 var subtotalPrice = ticket.TicketPrice;

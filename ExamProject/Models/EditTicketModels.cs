@@ -26,4 +26,12 @@
 
         public List<EditTicketDetail?> Details { get; set; } = new();
     }
+
+    public class EditTicketResponse
+    {
+        public string TicketCode { get; set; } = string.Empty;
+        public string TicketName { get; set; } = string.Empty;
+        public int BookedTicketDetailsQuantity { get; set; } = 0;
+        public string categoryName { get; set; } = string.Empty;
+    }
 }

@@ -15,31 +15,18 @@ namespace ExamProject.Services
             _db = db;
         }
 
-        public async Task<ActionResult<List<BookingResponseDto>>> GetBookedTicketsAsync(BookedTicketsGet get)
+        public async Task<bool> BookedTicketIdExists(string bookedTicketId)
         {
-            if (string.IsNullOrEmpty(get.BookedTicketId))
-            {
-                return new BadRequestObjectResult(new ProblemDetails
-                {
-                    Status = StatusCodes.Status400BadRequest,
-                    Title = "Invalid Request",
-                    Detail = "BookedTicketId cannot be null or empty.",
-                    Instance = "/api/v1/get-booked-ticket"
-                });
-            }
+            return await _db.BookedTickets.AnyAsync(t => t.BookedTicketId == bookedTicketId);
+        }
 
-            var exists = await _db.BookedTickets.AnyAsync(t => t.BookedTicketId == get.BookedTicketId);
-            if (!exists)
-            {
-                return new NotFoundObjectResult(new ProblemDetails
-                {
-                    Status = StatusCodes.Status404NotFound,
-                    Title = "Booked Ticket Not Found",
-                    Detail = $"No ticket found with ID '{get.BookedTicketId}'.",
-                    Instance = $"/api/v1/get-booked-ticket/{get.BookedTicketId}"
-                });
-            }
+        public async Task<BookedTicket?> GetBookedTickedIdAsync(string bookedTicketId)
+        {
+            return await _db.BookedTickets.FirstOrDefaultAsync(t => t.BookedTicketId == bookedTicketId);
+        }
 
+        public async Task<List<BookingResponseDto>> GetBookedTicketsAsync(BookedTicketsGet get)
+        {
             var query = _db.BookedTickets
                     .Include(b => b.BookedTicketsDetails)
                     .ThenInclude(d => d.Ticket)
@@ -70,6 +57,5 @@ namespace ExamProject.Services
 
             return result;
         }
-
     }
 }
